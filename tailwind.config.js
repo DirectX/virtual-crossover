@@ -4,7 +4,11 @@ module.exports = {
         files: ["*.html", "./src/**/*.rs"]
     },
     theme: {
-        extend: {},
+        extend: {
+            container: {
+                padding: '2rem',
+            },
+        },
     },
     plugins: [],
 }

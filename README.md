@@ -70,3 +70,9 @@ This may be useful for integrating external tools which require a static site, e
 ## Licensing
 
 This template itself is released under the Unlicense. You should replace the LICENSE for your own application with an appropriate license if you plan to release it publicly.
+
+## References
+
+### Icons
+
+- https://www.svgrepo.com/collection/interface-thin-line-vectors/
