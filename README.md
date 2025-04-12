@@ -76,3 +76,5 @@ This template itself is released under the Unlicense. You should replace the LIC
 ### Icons
 
 - https://www.svgrepo.com/collection/interface-thin-line-vectors/
+- https://flowbite.com/docs/forms/range/
+- https://flowbite.com/docs/components/stepper/
