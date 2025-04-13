@@ -5,7 +5,7 @@ use leptos_router::{
     StaticSegment, WildcardSegment,
 };
 
-use crate::pages::{HomePage, NotFound};
+use crate::pages::{HomePage, ApiPage, NotFound};
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -25,6 +25,7 @@ pub fn App() -> impl IntoView {
             <main>
                 <Routes fallback=move || "Not found.">
                     <Route path=StaticSegment("") view=HomePage/>
+                    <Route path="/api/v1" view=ApiPage/>
                     <Route path=WildcardSegment("any") view=NotFound/>
                 </Routes>
             </main>
