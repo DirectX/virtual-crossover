@@ -4,6 +4,7 @@ use actix_web::{get, HttpResponse, Responder};
 use serde_json::json;
 
 #[get("/api/v1")]
+#[cfg(feature = "ssr")]
 pub async fn api_v1() -> impl Responder {
     HttpResponse::Ok().json(json!({
         "status": "success",
@@ -12,6 +13,7 @@ pub async fn api_v1() -> impl Responder {
     }))
 }
 
+#[cfg(feature = "ssr")]
 pub fn config(cfg: &mut actix_web::web::ServiceConfig) {
     cfg.service(api_v1);
 }

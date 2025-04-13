@@ -23,6 +23,7 @@ hydrate = ["leptos/hydrate"]
 ssr = [
   "dep:actix-files",
   "dep:actix-web",
+  "dep:http",
   "dep:leptos_actix",
   "leptos/ssr",
   "leptos_meta/ssr",
