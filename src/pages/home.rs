@@ -6,8 +6,8 @@ pub fn HomePage() -> impl IntoView {
     let (volume, set_volume) = signal(70);
 
     let (playing, set_playing) = signal(false);
-    let play = move || *set_playing.write() = true;
-    let stop = move || *set_playing.write() = false;
+    let _play = move || *set_playing.write() = true;
+    let _stop = move || *set_playing.write() = false;
     let toggle_play_stop = move |_| *set_playing.write() = !(playing.get());
 
     view! {
