@@ -1,4 +1,6 @@
 use leptos::prelude::*;
+use leptos_router::hooks::{use_params_map, use_query_map};
+use crate::api;
 
 /// Renders the home page of your application.
 #[component]
@@ -9,6 +11,35 @@ pub fn HomePage() -> impl IntoView {
     let _play = move || *set_playing.write() = true;
     let _stop = move || *set_playing.write() = false;
     let toggle_play_stop = move |_| *set_playing.write() = !(playing.get());
+
+    let query = use_query_map();
+    let params = use_params_map();
+    let page = move || {
+        query
+            .read()
+            .get("page")
+            .and_then(|page| page.parse::<usize>().ok())
+            .unwrap_or(1)
+    };
+    let story_type = move || {
+        params
+            .read()
+            .get("stories")
+            .unwrap_or_else(|| "top".to_string())
+    };
+    let stories = Resource::new(
+        move || (page(), story_type()),
+        move |(page, story_type)| async move {
+            let path = format!("{}?page={}", category(&story_type), page);
+            api::fetch_api::<Vec<api::Story>>(&api::story(&path)).await
+        },
+    );
+    let (pending, set_pending) = signal(false);
+
+    let hide_more_link = move || match &*stories.read() {
+        Some(Some(stories)) => stories.len() < 28,
+        _ => true
+    } || pending.get();
 
     view! {
         <div class="container mx-auto">
