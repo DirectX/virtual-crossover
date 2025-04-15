@@ -10,8 +10,6 @@ pub fn HomePage() -> impl IntoView {
     let _stop = move || *set_playing.write() = false;
     let toggle_play_stop = move |_| *set_playing.write() = !(playing.get());
 
-    let background_color = move || if playing.get() { "bg-emerald-300" } else { "bg-white" };
-
     view! {
         <div class="container mx-auto">
             <div class="mx-auto my-4 gap-x-4 rounded-xl p-6 shadow-lg outline outline-black/5 dark:bg-slate-800 dark:shadow-none dark:-outline-offset-1 dark:outline-white/10"
