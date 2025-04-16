@@ -1,4 +1,6 @@
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
+
+pub mod models;
 
 // use crate::api::ApiResponse;
 // use leptos::*;
@@ -54,7 +56,6 @@ where
 {
     use leptos::prelude::on_cleanup;
     use send_wrapper::SendWrapper;
-    use serde::{de::DeserializeOwned, Serialize};
 
     SendWrapper::new(async move {
         let abort_controller =
