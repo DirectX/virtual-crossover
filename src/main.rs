@@ -8,11 +8,34 @@ async fn main() -> std::io::Result<()> {
     use leptos_meta::MetaTags;
     use leptos_actix::{generate_route_list, LeptosRoutes};
     use virtual_crossover::app::*;
+    use tokio_util::sync::CancellationToken;
+    use std::sync::Arc;
 
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
 
-    HttpServer::new(move || {
+    // let cancellation_token = tokio_util::sync::CancellationToken::new();
+    let cancellation_token = Arc::new(CancellationToken::new());
+    let shutdown_token = cancellation_token.clone();
+    let audio_token = cancellation_token.clone();
+
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c().await.unwrap();
+        log::info!("\nShutting down...");
+        shutdown_token.cancel();
+    });
+
+    tokio::spawn(async move {
+        println!("Audio processing started...");
+        while !audio_token.is_cancelled() {
+            // Simulate work
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            log::info!("Audio process tick");
+        }
+        log::info!("Audio process exiting...");
+    });
+
+    let http_server = HttpServer::new(move || {
         // Generate the list of routes in your Leptos App
         let routes = generate_route_list(App);
         let leptos_options = &conf.leptos_options;
@@ -51,8 +74,19 @@ async fn main() -> std::io::Result<()> {
         //.wrap(middleware::Compress::default())
     })
     .bind(&addr)?
-    .run()
-    .await
+    .run();
+
+    let server_handle = http_server.handle();
+
+    // Spawn a task to stop the server when the cancellation token is triggered
+    let cancel_token = cancellation_token.clone();
+    tokio::spawn(async move {
+        cancel_token.cancelled().await;
+        log::info!("Cancellation token triggered, stopping server...");
+        server_handle.stop(true).await;
+    });
+
+    http_server.await
 }
 
 #[cfg(feature = "ssr")]
