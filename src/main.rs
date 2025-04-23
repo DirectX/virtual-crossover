@@ -20,19 +20,19 @@ async fn main() -> std::io::Result<()> {
     let audio_token = cancellation_token.clone();
 
     tokio::spawn(async move {
+        println!("Waiting for Ctrl+C");
         tokio::signal::ctrl_c().await.unwrap();
-        log::info!("\nShutting down...");
+        println!("Shutting down...");
         shutdown_token.cancel();
     });
 
     tokio::spawn(async move {
         println!("Audio processing started...");
         while !audio_token.is_cancelled() {
-            // Simulate work
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            log::info!("Audio process tick");
+            println!("Audio process tick");
         }
-        log::info!("Audio process exiting...");
+        println!("Audio process exiting...");
     });
 
     let http_server = HttpServer::new(move || {
