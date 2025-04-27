@@ -1,0 +1,9 @@
+[package]
+name = "audioserver"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rodio = "0.17"
+minimp3 = "0.5"
+biquad = "0.4"
