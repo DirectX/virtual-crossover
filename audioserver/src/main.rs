@@ -1,109 +1,165 @@
-use std::{fs::File, io::BufReader, time::Duration};
-use rodio::{OutputStream, Sink, Source};
-use minimp3::{Decoder, Frame};
-use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
+use anyhow::Result;
+use rodio::cpal::traits::HostTrait;
+use rodio::{cpal, Decoder, Device, DeviceTrait, OutputStream, Sink, Source};
+use std::fs::File;
+use std::io::{self, BufReader, Write};
+use std::time::Duration;
 
-struct FilteredPannedSource {
-    samples: Vec<f32>, // interleaved stereo samples
-    index: usize,
-    sample_rate: u32,
+struct AudioPlayer {
+    sink: Sink,
+    _stream: OutputStream,
+    _stream_handle: rodio::OutputStreamHandle,
 }
 
-impl Iterator for FilteredPannedSource {
-    type Item = f32;
+impl AudioPlayer {
+    fn new() -> Result<Self> {
+        // Use default device
+        let (stream, stream_handle) = OutputStream::try_default()?;
+        let sink = Sink::try_new(&stream_handle)?;
+        
+        Ok(AudioPlayer {
+            sink,
+            _stream: stream,
+            _stream_handle: stream_handle,
+        })
+    }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.samples.len() {
-            None
-        } else {
-            let sample = self.samples[self.index];
-            self.index += 1;
-            Some(sample)
-        }
+    fn new_with_cpal_device(device: &cpal::Device) -> Result<Self> {
+        let (stream, stream_handle) = OutputStream::try_from_device(&device)?;
+        let sink = Sink::try_new(&stream_handle)?;
+        
+        Ok(AudioPlayer {
+            sink,
+            _stream: stream,
+            _stream_handle: stream_handle,
+        })
+    }
+
+    // List all available audio devices
+    fn list_devices() -> Vec<cpal::Device> {
+        let host = cpal::default_host();
+        host.output_devices()
+            .expect("Failed to get audio devices")
+            .collect()
+    }
+
+    // Get device name
+    fn get_device_name(device: &Device) -> String {
+        device.name()
+            .unwrap_or_else(|_| "Unknown Device".to_string())
+    }
+
+    fn play_file(&self, path: &str) -> Result<()> {
+        let file = BufReader::new(File::open(path)?);
+        let source = Decoder::new(file)?;
+        
+        // Convert i16 samples to f32 and apply low-pass filter
+        let converted_source = source.convert_samples::<f32>();
+        let filtered_source = converted_source.low_pass(200);
+        self.sink.append(filtered_source);
+        self.sink.play();
+        
+        Ok(())
+    }
+
+    fn pause(&self) {
+        self.sink.pause();
+    }
+
+    fn resume(&self) {
+        self.sink.play();
+    }
+
+    fn stop(&self) {
+        self.sink.stop();
+    }
+
+    fn set_volume(&self, volume: f32) {
+        self.sink.set_volume(volume);
+    }
+
+    // Basic high-pass filter implementation
+    fn apply_high_pass(&self, path: &str, cutoff_frequency: u32) -> Result<()> {
+        let file = BufReader::new(File::open(path)?);
+        let source = Decoder::new(file)?;
+        let converted_source = source.convert_samples::<f32>();
+        let filtered_source = converted_source.high_pass(cutoff_frequency);
+        self.sink.append(filtered_source);
+        self.sink.play();
+        Ok(())
     }
 }
 
-impl Source for FilteredPannedSource {
-    fn current_frame_len(&self) -> Option<usize> {
-        Some(self.samples.len() / 2)
+fn select_device() -> Result<Device> {
+    let devices = AudioPlayer::list_devices();
+    
+    println!("Available audio devices:");
+    for (idx, device) in devices.iter().enumerate() {
+        println!("{}: {}", idx, AudioPlayer::get_device_name(device));
     }
 
-    fn channels(&self) -> u16 {
-        2 // stereo
-    }
-
-    fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
-
-    fn total_duration(&self) -> Option<Duration> {
-        Some(Duration::from_secs_f64(
-            self.samples.len() as f64 / self.sample_rate as f64 / 2.0,
-        ))
-    }
+    print!("Select device number: ");
+    io::stdout().flush()?;
+    
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    
+    let device_idx = input.trim().parse::<usize>()?;
+    devices.get(device_idx)
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("Invalid device index"))
 }
 
-fn main() {
-    // Load MP3 file
-    println!("Loading mpg");
-    let file = File::open("./audioserver/test.mp3").expect("failed to open mp3");
-    println!("Loaded");
-    let mut decoder = Decoder::new(BufReader::new(file));
-    println!("Decoder created");
+fn main() -> Result<()> {
+    // // List all available audio devices
+    // println!("Available audio devices:");
+    // let devices = AudioPlayer::list_devices();
+    // for (idx, device) in devices.iter().enumerate() {
+    //     println!("{}: {}", idx, AudioPlayer::get_device_name(device));
+    // }
 
-    let sample_rate = 44100;
-
-    // Setup filters
-    let filter_coeffs = Coefficients::<f32>::from_params(
-        Type::BandPass,
-        sample_rate.hz(),
-        1000.hz(),
-        Q_BUTTERWORTH_F32,
-    ).unwrap();
-    println!("Filter coeffs: {:?}", filter_coeffs);
-
-    let mut left_filter = DirectForm1::<f32>::new(filter_coeffs);
-    let mut right_filter = DirectForm1::<f32>::new(filter_coeffs);
-    println!("Filters created");
-
-    println!("Decoder");
-
-    let mut interleaved_samples = Vec::new();
-
-    println!("Decoder: {:?}", decoder.next_frame());
-
-    // Decode and filter
-    while let Ok(Frame { data, channels, .. }) = decoder.next_frame() {
-        println!("frame: {} bytes, {} channels", data.len(), channels);
-
-        for i in 0..(data.len() / channels) {
-            let left = data[i * channels] as f32 / 32768.0;
-            let right = if channels > 1 {
-                data[i * channels + 1] as f32 / 32768.0
-            } else {
-                left
-            };
-
-            // Apply band-pass filtering
-            let filtered_left = left_filter.run(left);
-            let filtered_right = right_filter.run(right);
-
-            // Example: pan to **right channel** only
-            interleaved_samples.push(filtered_left);
-            interleaved_samples.push(filtered_right);
-        }
-    }
-
-    // Set up rodio output
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    let sink = Sink::try_new(&stream_handle).unwrap();
-
-    let source = FilteredPannedSource {
-        samples: interleaved_samples,
-        index: 0,
-        sample_rate,
+    // Example: Use the first available device (if any)
+    let player = if let Ok(device) = select_device().as_ref() {
+        println!("Using device: {}", AudioPlayer::get_device_name(device));
+        AudioPlayer::new_with_cpal_device(device)?
+    } else {
+        println!("No devices found, using default");
+        AudioPlayer::new()?
     };
+    
+    // // Example usage
+    // println!("Playing audio file...");
+    // player.play_file("./test.mp3")?;
+    
+    // // Set volume (0.0 to 1.0)
+    player.set_volume(0.7);
+    
+    // // Wait for a few seconds
+    // std::thread::sleep(Duration::from_secs(5));
+    
+    // // Pause playback
+    // println!("Pausing...");
+    // player.pause();
+    // std::thread::sleep(Duration::from_secs(2));
+    
+    // // Resume playback
+    // println!("Resuming...");
+    // player.resume();
+    // std::thread::sleep(Duration::from_secs(5));
+    
+    // Apply high-pass filter
+    println!("Applying high-pass filter...");
+    player.apply_high_pass("./audioserver/test.mp3", 200)?;
+    std::thread::sleep(Duration::from_secs(10));
+    player.stop();
 
-    sink.append(source);
-    sink.sleep_until_end();
+    println!("Playing audio file...");
+    player.play_file("./audioserver/test.mp3")?;
+    std::thread::sleep(Duration::from_secs(10));
+    
+    // Stop playback
+    println!("Stopping...");
+    player.stop();
+
+    Ok(())
 }

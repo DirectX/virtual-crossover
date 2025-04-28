@@ -355,6 +355,7 @@ dependencies = [
 name = "audioserver"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "biquad",
  "minimp3",
  "rodio",
