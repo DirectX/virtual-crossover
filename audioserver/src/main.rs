@@ -55,6 +55,19 @@ impl AudioPlayer {
         
         // Convert i16 samples to f32 and apply low-pass filter
         let converted_source = source.convert_samples::<f32>();
+        let filtered_source = converted_source;
+        self.sink.append(filtered_source);
+        self.sink.play();
+        
+        Ok(())
+    }
+
+    fn apply_low_pass(&self, path: &str) -> Result<()> {
+        let file = BufReader::new(File::open(path)?);
+        let source = Decoder::new(file)?;
+        
+        // Convert i16 samples to f32 and apply low-pass filter
+        let converted_source = source.convert_samples::<f32>();
         let filtered_source = converted_source.low_pass(200);
         self.sink.append(filtered_source);
         self.sink.play();
@@ -93,18 +106,20 @@ impl AudioPlayer {
 fn select_device() -> Result<Device> {
     let devices = AudioPlayer::list_devices();
     
-    println!("Available audio devices:");
-    for (idx, device) in devices.iter().enumerate() {
-        println!("{}: {}", idx, AudioPlayer::get_device_name(device));
-    }
+    // println!("Available audio devices:");
+    // for (idx, device) in devices.iter().enumerate() {
+    //     println!("{}: {}", idx, AudioPlayer::get_device_name(device));
+    // }
 
-    print!("Select device number: ");
-    io::stdout().flush()?;
+    // print!("Select device number: ");
+    // io::stdout().flush()?;
     
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    // let mut input = String::new();
+    // io::stdin().read_line(&mut input)?;
     
-    let device_idx = input.trim().parse::<usize>()?;
+    // let device_idx = input.trim().parse::<usize>()?;
+
+    let device_idx = 0;
     devices.get(device_idx)
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("Invalid device index"))
@@ -147,15 +162,20 @@ fn main() -> Result<()> {
     // player.resume();
     // std::thread::sleep(Duration::from_secs(5));
     
-    // Apply high-pass filter
     println!("Applying high-pass filter...");
-    player.apply_high_pass("./audioserver/test.mp3", 200)?;
-    std::thread::sleep(Duration::from_secs(10));
+    player.play_file("./audioserver/test.mp3")?;
+    std::thread::sleep(Duration::from_secs(27));
     player.stop();
 
-    println!("Playing audio file...");
-    player.play_file("./audioserver/test.mp3")?;
-    std::thread::sleep(Duration::from_secs(10));
+    // // Apply high-pass filter
+    // println!("Applying high-pass filter...");
+    // player.apply_high_pass("./audioserver/test.mp3", 200)?;
+    // std::thread::sleep(Duration::from_secs(10));
+    // player.stop();
+
+    // println!("Playing audio file...");
+    // player.apply_low_pass("./audioserver/test.mp3")?;
+    // std::thread::sleep(Duration::from_secs(10));
     
     // Stop playback
     println!("Stopping...");
