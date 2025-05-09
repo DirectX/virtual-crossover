@@ -65,6 +65,35 @@ impl AudioPlayer {
     fn apply_low_pass(&self, path: &str) -> Result<()> {
         let file = BufReader::new(File::open(path)?);
         let source = Decoder::new(file)?;
+
+        // // Define 6-order FIR filter coefficients
+        // // These coefficients should be adjusted based on the desired filter response
+        // let fir_coefficients = [0.1, 0.2, 0.3, 0.3, 0.2, 0.1]; // Example coefficients
+
+        // // Apply the FIR filter to the source
+        // let filtered_source = rodio::source::Zero; // ::source::Source::filter(
+        //     converted_source,
+        //     move |samples: &mut [f32], _: &cpal::SampleFormat| {
+        //         // Buffer for previous samples (for FIR calculation)
+        //         let mut buffer = vec![0.0; fir_coefficients.len()];
+
+        //         for sample in samples.iter_mut() {
+        //             // Shift buffer values
+        //             for i in (1..buffer.len()).rev() {
+        //                 buffer[i] = buffer[i-1];
+        //             }
+        //             buffer[0] = *sample;
+
+        //             // Apply FIR filter
+        //             let mut filtered_value = 0.0;
+        //             for (i, coeff) in fir_coefficients.iter().enumerate() {
+        //                 filtered_value += buffer[i] * coeff;
+        //             }
+
+        //             *sample = filtered_value;
+        //         }
+        //     },
+        // );
         
         // Convert i16 samples to f32 and apply low-pass filter
         let converted_source = source.convert_samples::<f32>();
