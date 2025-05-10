@@ -5,6 +5,30 @@ use std::fs::File;
 use std::io::{self, BufReader, Write};
 use std::time::Duration;
 
+struct AudioFilter {
+    fir_coefficients: Vec<f32>,
+}
+
+impl AudioFilter {
+    fn new(coefficients: Vec<f32>) -> Self {
+        AudioFilter { fir_coefficients: coefficients }
+    }
+
+    fn apply(&self, input: &[f32]) -> Vec<f32> {
+        let mut output = Vec::new();
+        for i in 0..input.len() {
+            let mut sum = 0.0;
+            for j in 0..self.fir_coefficients.len() {
+                if i >= j {
+                    sum += input[i - j] * self.fir_coefficients[j];
+                }
+            }
+            output.push(sum);
+        }
+        output
+    }
+}
+
 struct AudioPlayer {
     sink: Sink,
     _stream: OutputStream,
