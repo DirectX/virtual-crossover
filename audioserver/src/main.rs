@@ -59,11 +59,19 @@ impl AudioPlayer {
         })
     }
 
-    // List all available audio devices
-    fn list_devices() -> Vec<cpal::Device> {
+    // List all available audio input devices
+    fn list_input_devices() -> Vec<cpal::Device> {
+        let host = cpal::default_host();
+        host.input_devices()
+            .expect("Failed to get audio input devices")
+            .collect()
+    }
+
+    // List all available audio output_devices
+    fn list_output_devices() -> Vec<cpal::Device> {
         let host = cpal::default_host();
         host.output_devices()
-            .expect("Failed to get audio devices")
+            .expect("Failed to get audio output devices")
             .collect()
     }
 
@@ -77,7 +85,14 @@ impl AudioPlayer {
         let file = BufReader::new(File::open(path)?);
         let source = Decoder::new(file)?;
         
-        // Convert i16 samples to f32 and apply low-pass filter
+        // // Convert i16 samples to f32 and apply low-pass filter
+        // let samples = source.sa .samples().collect::<Vec<f32>>();
+        // let filter = AudioFilter::new(vec![0.2, 0.3, 0.5]);
+        // let filtered_samples = filter.apply(&samples);
+        // let filtered_source = rodio::source::from_iter(filtered_samples.into_iter());
+        // self.sink.append(filtered_source);
+        // self.sink.play();
+
         let converted_source = source.convert_samples::<f32>();
         let filtered_source = converted_source;
         self.sink.append(filtered_source);
@@ -157,7 +172,7 @@ impl AudioPlayer {
 }
 
 fn select_device() -> Result<Device> {
-    let devices = AudioPlayer::list_devices();
+    let devices = AudioPlayer::list_output_devices();
     
     // println!("Available audio devices:");
     // for (idx, device) in devices.iter().enumerate() {
@@ -179,12 +194,19 @@ fn select_device() -> Result<Device> {
 }
 
 fn main() -> Result<()> {
-    // // List all available audio devices
-    // println!("Available audio devices:");
-    // let devices = AudioPlayer::list_devices();
-    // for (idx, device) in devices.iter().enumerate() {
-    //     println!("{}: {}", idx, AudioPlayer::get_device_name(device));
-    // }
+    // List all available audio input devices
+    println!("Available audio input devices:");
+    let devices = AudioPlayer::list_input_devices();
+    for (idx, device) in devices.iter().enumerate() {
+        println!("{}: {}", idx, AudioPlayer::get_device_name(device));
+    }
+
+    // List all available audio output devices
+    println!("Available audio output devices:");
+    let devices = AudioPlayer::list_output_devices();
+    for (idx, device) in devices.iter().enumerate() {
+        println!("{}: {}", idx, AudioPlayer::get_device_name(device));
+    }
 
     // Example: Use the first available device (if any)
     let player = if let Ok(device) = select_device().as_ref() {
