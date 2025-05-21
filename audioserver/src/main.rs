@@ -1,10 +1,14 @@
 use anyhow::Result;
-use rodio::cpal::traits::HostTrait;
+use rodio::cpal::traits::{HostTrait, StreamTrait};
 use rodio::{cpal, Decoder, Device, DeviceTrait, OutputStream, Sink, Source};
 use std::fs::File;
 use std::io::{self, BufReader, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::Duration;
 
+#[derive(Debug, Clone)]
 struct AudioFilter {
     fir_coefficients: Vec<f32>,
 }
@@ -33,6 +37,104 @@ struct AudioPlayer {
     sink: Sink,
     _stream: OutputStream,
     _stream_handle: rodio::OutputStreamHandle,
+}
+
+struct AudioTransformer {
+    input_device: cpal::Device,
+    output_device: cpal::Device,
+    filter: Option<AudioFilter>,
+    running: Arc<AtomicBool>,
+    processing_thread: Option<JoinHandle<()>>,
+}
+
+impl AudioTransformer {
+    fn new(input_device: cpal::Device, output_device: cpal::Device) -> Result<Self> {
+        Ok(Self {
+            input_device,
+            output_device,
+            filter: None,
+            running: Arc::new(AtomicBool::new(false)),
+            processing_thread: None,
+        })
+    }
+
+    fn set_filter(&mut self, coefficients: Vec<f32>) {
+        self.filter = Some(AudioFilter::new(coefficients));
+    }
+
+    fn start_processing(&mut self) -> Result<()> {
+        if self.processing_thread.is_some() {
+            return Ok(());  // Already running
+        }
+
+        let input_device = self.input_device.clone();
+        let output_device = self.output_device.clone();
+        let filter = self.filter.clone();
+        let running = self.running.clone();
+
+        running.store(true, Ordering::SeqCst);
+
+        let handle = std::thread::spawn(move || {
+            // Setup input stream config
+            let input_config = input_device.default_input_config().unwrap();
+
+            // Setup output stream config
+            let output_config = output_device.default_output_config().unwrap();
+
+            // Create a channel to transfer audio data
+            let (tx, rx) = std::sync::mpsc::channel();
+
+            // Setup input stream
+            let input_stream = input_device.build_input_stream(
+                &input_config.into(),
+                move |data: &[f32], _: &_| {
+                    // Apply filter if available
+                    let processed_data = if let Some(ref f) = filter {
+                        f.apply(data)
+                    } else {
+                        data.to_vec()
+                    };
+
+                    let _ = tx.send(processed_data);
+                },
+                |err| eprintln!("Input stream error: {}", err),
+                None
+            ).unwrap();
+
+            // Setup output stream
+            let output_stream = output_device.build_output_stream(
+                &output_config.into(),
+                move |data: &mut [f32], _: &_| {
+                    if let Ok(processed_data) = rx.try_recv() {
+                        // Copy processed data to output buffer
+                        let len = std::cmp::min(data.len(), processed_data.len());
+                        data[..len].copy_from_slice(&processed_data[..len]);
+                    }
+                },
+                |err| eprintln!("Output stream error: {}", err),
+                None
+            ).unwrap();
+
+            // Start streams
+            input_stream.play().unwrap();
+            output_stream.play().unwrap();
+
+            // Keep thread alive while processing
+            while running.load(Ordering::SeqCst) {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        });
+
+        self.processing_thread = Some(handle);
+        Ok(())
+    }
+
+    fn stop_processing(&mut self) {
+        if let Some(handle) = self.processing_thread.take() {
+            self.running.store(false, Ordering::SeqCst);
+            let _ = handle.join();
+        }
+    }
 }
 
 impl AudioPlayer {
@@ -253,8 +355,8 @@ fn main() -> Result<()> {
     // std::thread::sleep(Duration::from_secs(10));
     
     // Stop playback
-    println!("Stopping...");
-    player.stop();
+    // println!("Stopping...");
+    // player.stop();
 
     Ok(())
 }
